@@ -27,7 +27,7 @@ function check(name, condition, detail) {
  * 造一个场景脚本：把 git 与 GitHub API 换成假的，其余逻辑原样。
  * 假实现写进**生成的文件**里（同进程 import，不经 stdout 传递）。
  */
-function buildScenario({ remote, repoStatus, topics, branch = "main", dirty = "", tagExists = "" }) {
+function buildScenario({ remote, repoStatus, topics, branch = "main", dirty = "", tagExists = "", reset = null, topicsStatus = 200 }) {
   let code = source;
 
   code = code.replace(
@@ -70,9 +70,25 @@ const __FAKE_GIT__ = (key) => {
   return "";
 };
 const __FAKE_API__ = (path) => {
-  if (path.endsWith("/topics")) return { status: 200, body: JSON.stringify({ names: ${JSON.stringify(topics)} }) };
-  if (${repoStatus} === 404) return { status: 404, body: "{}" };
-  return { status: 200, body: JSON.stringify({ created_at: "2026-10-16T00:00:00Z", default_branch: "main" }) };
+  if (path.endsWith("/topics")) {
+    if (${topicsStatus} !== 200) return { status: ${topicsStatus}, body: "{}", remaining: "0", reset: ${JSON.stringify(reset)} };
+    return { status: 200, body: JSON.stringify({ names: ${JSON.stringify(topics)} }) };
+  }
+  if (${repoStatus} === 404) return { status: 404, body: "{}", remaining: "50", reset: null };
+  if (${repoStatus} === 403) {
+    return {
+      status: 403,
+      body: JSON.stringify({ message: "API rate limit exceeded" }),
+      remaining: "0",
+      reset: ${JSON.stringify(reset)},
+    };
+  }
+  return {
+    status: 200,
+    body: JSON.stringify({ created_at: "2026-10-16T00:00:00Z", default_branch: "main" }),
+    remaining: "50",
+    reset: null,
+  };
 };
 globalThis.__PROBE__ = { pushed: [], remoteSet: null, tagged: null };
 `;
@@ -191,6 +207,42 @@ async function run(file, args) {
   const r = await run(file, ["--tag", "v1.0.0"]);
   check("origin 指向别处：被改写", String(r.probe.remoteSet).includes("set-url"), String(r.probe.remoteSet));
   check("origin 指向别处：仍能推完", r.exitCode === 0, `exit=${r.exitCode}\n${r.out}`);
+  rmSync(dir, { recursive: true, force: true });
+}
+
+// 8) API 限流（403）→ **不该拦住推送**（用户实际撞上的情形）
+//    未认证调用每小时 60 次且按出口 IP 共享，很容易撞上；
+//    仓库存不存在只影响提示，git push 本身不需要它。
+{
+  const reset = String(Math.floor(Date.now() / 1000) + 600); // 10 分钟后恢复
+  const { dir, file } = buildScenario({ remote: null, repoStatus: 403, topics: [], reset });
+  const r = await run(file, ["--tag", "v1.0.0"]);
+  check("API 限流：不崩、不误报成仓库问题", r.exitCode === 0, `exit=${r.exitCode}\n${r.out}`);
+  check("API 限流：说明这是限流", r.out.includes("限流"), r.out);
+  check("API 限流：给出恢复等待时间", r.out.includes("分钟（到") || r.out.includes("秒"), r.out);
+  check("API 限流：说明多久后恢复", r.out.includes("后恢复"), r.out);
+  check("API 限流：提示按出口 IP 共享", r.out.includes("出口 IP"), r.out);
+  check("API 限流：提示怎么绕开（gh auth / GITHUB_TOKEN）",
+    r.out.includes("gh auth login") && r.out.includes("GITHUB_TOKEN"), r.out);
+  check("API 限流：仍照常推送 main",
+    r.probe.pushed.some((c) => c.includes("push -u origin main")), JSON.stringify(r.probe.pushed));
+  check("API 限流：仍照常打 tag",
+    typeof r.probe.tagged === "string" && r.probe.tagged.includes("v1.0.0"), String(r.probe.tagged));
+  rmSync(dir, { recursive: true, force: true });
+}
+
+// 9) 仓库存在但读 topic 时被限流 → 降级成"请自己确认"，不误报成"缺 topic"
+{
+  const reset = String(Math.floor(Date.now() / 1000) + 120);
+  const { dir, file } = buildScenario({
+    remote: null, repoStatus: 200, topics: [], topicsStatus: 403, reset,
+  });
+  const r = await run(file, ["--check"]);
+  check("topic 读取限流：不崩", r.exitCode === 0, `exit=${r.exitCode}\n${r.out}`);
+  check("topic 读取限流：说「没能读到」而不是「缺 topic」",
+    r.out.includes("没能读到"), r.out);
+  check("topic 读取限流：仍给出页面设置指引",
+    r.out.includes("Topics"), r.out);
   rmSync(dir, { recursive: true, force: true });
 }
 

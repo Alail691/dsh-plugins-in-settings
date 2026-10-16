@@ -72,12 +72,29 @@ function api(path) {
       (response) => {
         let body = "";
         response.on("data", (chunk) => { body += chunk; });
-        response.on("end", () => resolve({ status: response.statusCode, body }));
+        response.on("end", () => resolve({
+          status: response.statusCode,
+          body,
+          // 限流信息就在响应头里：403/429 时要靠它告诉用户"等多久"，
+          // 而不是让人以为仓库或网络出了问题。
+          remaining: response.headers["x-ratelimit-remaining"],
+          reset: response.headers["x-ratelimit-reset"],
+        }));
       },
     );
     request.on("error", (error) => resolve({ status: 0, error: error.code || error.message }));
     request.setTimeout(15000, () => { resolve({ status: 0, error: "timeout" }); request.destroy(); });
   });
+}
+
+/** 把 x-ratelimit-reset（Unix 秒）说成"还要等多久"。 */
+function waitText(resetHeader) {
+  const resetAt = Number(resetHeader);
+  if (!Number.isFinite(resetAt) || resetAt <= 0) return "大约一小时";
+  const seconds = Math.max(0, resetAt - Math.floor(Date.now() / 1000));
+  if (seconds < 60) return `约 ${seconds} 秒`;
+  const minutes = Math.ceil(seconds / 60);
+  return `约 ${minutes} 分钟（到 ${new Date(resetAt * 1000).toLocaleTimeString()}）`;
 }
 
 function say(message) { console.log(`  ${message}`); }
@@ -124,7 +141,11 @@ say("工作区  ：干净");
  */
 function gitTry(gitArgs) {
   try {
-    return { ok: true, out: git(gitArgs) };
+    const out = git(gitArgs);
+    // 兜一层：调用方会直接读 `.out.length`，所以这里保证它永远是字符串。
+    // （真 git 失败会抛异常，正常时返回字符串；但把"可能为空"这件事收在
+    //  这一处，比让每个调用方各自防一遍更不容易漏。）
+    return { ok: true, out: typeof out === "string" ? out : "" };
   } catch {
     return { ok: false, out: "" };
   }
@@ -151,24 +172,50 @@ if (repo.status === 404) {
     `    公开；**不要**勾 README / .gitignore / license（本地已有）`,
   );
 }
-if (repo.status !== 200) {
+/*
+ * 403 / 429 几乎总是**未认证调用的限流**（每小时 60 次，按出口 IP 共享），
+ * 而不是"仓库有问题"或"网络坏了"。这种情况**不该拦住推送** ——
+ * 仓库在不在、有没有 topic，只影响提示信息，git push 本身不需要这些。
+ * 所以这里降级成警告继续走，并告诉用户等多久 / 怎么彻底绕开。
+ */
+if (repo.status === 403 || repo.status === 429) {
+  const resetHint = waitText(repo.reset);
+  console.log("");
+  console.log(`  ⚠️  GitHub API 限流（HTTP ${repo.status}），${resetHint}后恢复。`);
+  console.log("     未认证调用每小时只有 60 次，且**按出口 IP 共享**，很容易撞上。");
+  console.log("     这不影响推送本身，所以继续；只是没法替你确认仓库是否存在、有没有 topic。");
+  console.log("     想彻底避免：给 gh 登录（gh auth login）或设 GITHUB_TOKEN 环境变量。");
+  console.log("");
+  say("仓库    ：未能确认（API 限流）");
+} else if (repo.status !== 200) {
   fail(`查询仓库失败（HTTP ${repo.status}）`, String(repo.body).slice(0, 200));
+} else {
+  const info = JSON.parse(repo.body);
+  say(`仓库    ：已存在（创建于 ${info.created_at}，默认分支 ${info.default_branch}）`);
 }
-const info = JSON.parse(repo.body);
-say(`仓库    ：已存在（创建于 ${info.created_at}，默认分支 ${info.default_branch}）`);
 
 /* ── 4. topic（市场收录入口）── */
-const topics = await api(`/repos/${slug}/topics`);
 let topicList = [];
-try { topicList = JSON.parse(topics.body).names ?? []; } catch { /* 忽略 */ }
-if (topicList.includes("dsh-plugin")) {
-  say(`topic   ：含 dsh-plugin ✓`);
-} else {
-  console.log("");
-  console.log("  ⚠️  缺 `dsh-plugin` topic —— 插件市场靠它自动收录，没加就不会被收录。");
-  console.log("     GitHub 的 topic 没有文件可提交，只能在页面上加：");
-  console.log(`       https://github.com/${slug} → 右上角 ⚙️ (About) → Topics`);
-  console.log("     要填：dsh-plugin, dsh, deepseek-harness, plugin-manager, settings");
+let topicKnown = false;
+if (repo.status === 200) {
+  const topics = await api(`/repos/${slug}/topics`);
+  if (topics.status === 200) {
+    topicKnown = true;
+    try { topicList = JSON.parse(topics.body).names ?? []; } catch { /* 忽略 */ }
+  }
+  if (topicKnown && topicList.includes("dsh-plugin")) {
+    say(`topic   ：含 dsh-plugin ✓`);
+  } else {
+    console.log("");
+    if (!topicKnown) {
+      console.log("  ⚠️  没能读到 topic 列表（API 限流）—— 请自己确认加过 `dsh-plugin`。");
+    } else {
+      console.log("  ⚠️  缺 `dsh-plugin` topic —— 插件市场靠它自动收录，没加就不会被收录。");
+    }
+    console.log("     GitHub 的 topic 没有文件可提交，只能在页面上加：");
+    console.log(`       https://github.com/${slug} → 右上角 ⚙️ (About) → Topics`);
+    console.log("     要填：dsh-plugin, dsh, deepseek-harness, plugin-manager, settings");
+  }
 }
 
 if (checkOnly) {

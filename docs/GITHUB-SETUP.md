@@ -12,24 +12,55 @@ GitHub 的 topic **没有**对应的文件可以提交 —— 必须在仓库页
 | 检查项 | 结果 |
 |---|---|
 | 账号 `Alail691` | ✅ 存在（id 197763924） |
-| 仓库 `Alail691/dsh-plugins-in-settings` | ❌ **还不存在**（HTTP 404） |
+| 仓库 `Alail691/dsh-plugins-in-settings` | ✅ **已创建**（2026-10-16T10:58:27Z，公开，默认分支 main） |
+| 仓库内容 | ⬜ 还是空的（size 0，还没有提交） |
+| `dsh-plugin` topic | ❌ **还没加**（names 为空） |
 
-所以第一步是**建仓库**（见下），推之前它必须先存在。
-
-> 注：本机 curl 走的是 schannel，TLS 会报 `SEC_E_NO_CREDENTIALS`；
-> 用 Node 的 `https` 模块则正常。要命令行查 GitHub，用 Node 或浏览器，
-> 别被 curl 的报错误导成"没网"。
+所以现在要做的就两件：**推送**、**加 topic**。
 
 ---
 
-## 第一步：建仓库
+## 第一步：推送
 
-在 <https://github.com/new> 建一个**公开**仓库：
+```powershell
+cd dsh-plugins-in-settings
+npm run push          # 接远程 + 推 main + 打 tag
+```
 
-- **Repository name**：`dsh-plugins-in-settings`（必须与包名一致）
-- **不要**勾 "Add a README file" / "Add .gitignore" / "Choose a license"
-  —— 本目录里都已有，勾了会冲突
-- 建完把地址记下：`https://github.com/Alail691/dsh-plugins-in-settings.git`
+（仓库已建好，`push:check` 现在应当报"仓库已存在"。）
+
+---
+
+## 第二步：加 `dsh-plugin` topic
+
+GitHub 的 topic **没有文件可提交**，只能在页面上加；而**市场只靠它收录**。
+路径：<https://github.com/Alail691/dsh-plugins-in-settings> → 右上角 ⚙️ (About) → Topics。
+
+---
+
+## 两个容易踩的坑
+
+### 1. curl 报 SSL 错 ≠ 没网
+
+本机 curl 走 schannel，TLS 会报 `SEC_E_NO_CREDENTIALS`；用 Node 的 `https`
+模块则完全正常。要命令行查 GitHub，**用 Node 或浏览器**，
+别被 curl 的报错误导成"网络不通"。
+
+### 2. GitHub API 有未认证限流
+
+未认证调用**每小时 60 次**，而且**按出口 IP 共享** —— 很容易撞上，
+报 `HTTP 403: API rate limit exceeded`。
+
+`scripts/push.mjs` 对这种情形**不会拦住推送**（仓库存不存在、有没有 topic
+只影响提示，`git push` 本身不需要这些），只会降级成警告，并告诉你多久恢复。
+想彻底避免：
+
+```powershell
+gh auth login                        # 或用环境变量
+$env:GITHUB_TOKEN = "ghp_xxx"        # 带上它，限额提到每小时 5000
+```
+
+---
 
 ---
 

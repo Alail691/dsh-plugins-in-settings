@@ -222,16 +222,18 @@ git add -A && git commit -m "..." && git push
 **已核实（2026-10-16，用 GitHub API 查的）：**
 
 - [x] 账号 `Alail691` 存在（id 197763924）
-- [ ] 仓库 `Alail691/dsh-plugins-in-settings` —— **还不存在（HTTP 404）**，需先创建
+- [x] 仓库 `Alail691/dsh-plugins-in-settings` **已创建**（公开，默认分支 main，但内容还是空的）
+- [ ] `dsh-plugin` topic —— **还没加**
 
-**需要你在联网环境里做的（按顺序）：**
+**还差三步（按顺序）：**
 
-1. - [ ] 在 <https://github.com/new> 新建**公开**仓库 `dsh-plugins-in-settings`
-   （**不要**勾 README / .gitignore / license）
-2. - [ ] `npm run push` ← 接远程、推 main、打 tag 一次做完
+1. - [ ] `npm run push` ← 接远程、推 main、打 tag 一次做完
    （或手工 `git remote add origin ...` + `git push -u origin main`）
-3. - [ ] 给仓库加 **`dsh-plugin`** topic ← **市场收录入口，不加就不会被收录**
+2. - [ ] 给仓库加 **`dsh-plugin`** topic ← **市场收录入口，不加就不会被收录**
    （GitHub 的 topic 没有文件可提交，只能在页面上加；清单见 [GITHUB-SETUP.md](GITHUB-SETUP.md)）
-4. - [ ] 去 GitHub 基于 tag 建一个 Release
-5. - [ ] （可选）`npm publish --access public`
-6. - [ ] （可选）重启 DSH Desktop，确认「设置 → 插件 → 插件管理」出现并能装一个插件
+3. - [ ] 去 GitHub 基于 tag 建一个 Release
+
+**可选：**
+
+4. - [ ] `npm publish --access public`
+5. - [ ] 重启 DSH Desktop，确认「设置 → 插件 → 插件管理」出现并能装一个插件
