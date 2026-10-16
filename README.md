@@ -174,6 +174,15 @@ npm run publish:check # 发布自检（22 项）：占位符 / private / files �
 npm run verify        # 上面三个一起跑
 ```
 
+**发布到 GitHub**（面向仓库作者）：
+
+```powershell
+npm run push:check    # 先只检查：分支、工作区、仓库是否存在、有没有 dsh-plugin topic
+npm run push          # 接远程 + 推 main + 打 tag
+```
+
+详见 [`docs/PUBLISHING.md`](docs/PUBLISHING.md) 与 [`docs/GITHUB-SETUP.md`](docs/GITHUB-SETUP.md)。
+
 - `test/run.mjs` 验的是"我们自己的形状对不对"：产物契约、纯函数归一化、
   注册契约、数据路径的成功与失败两条路。
 - `test/preflight.mjs` 验的是"我们挂的那个地方还在不在"：直接读官方

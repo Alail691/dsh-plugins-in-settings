@@ -63,25 +63,32 @@ node test/publish-check.mjs # 发布自检：必须 0 错误（22 项）
 
 ### 2.2 推送
 
-仓库**已经初始化好并提交过**（3 个提交，`main` 分支），所以只需要接上远程再推：
+仓库**已经初始化好并提交过**（4 个提交，`main` 分支）。用助手脚本一条命令搞定：
 
 ```powershell
 cd dsh-plugins-in-settings
 
-# 用户名已按 Alail691 写进 package.json
+npm run push:check    # 先只检查（不动任何东西）
+npm run push          # 接远程 + 推 main + 打 tag
+```
+
+`scripts/push.mjs` 会**先核实前置条件**再动手：分支是不是 `main`、工作区干不干净、
+仓库在 GitHub 上存不存在、有没有 `dsh-plugin` topic。缺哪一步就告诉你该做什么，
+而不是推一半才失败。它还顺带提醒认证方式：
+
+- HTTPS 推送需要 **Personal Access Token**（不是账号密码）
+- 或改用 SSH：`git remote set-url origin git@github.com:Alail691/dsh-plugins-in-settings.git`
+
+**手工等价命令**（不想用脚本时）：
+
+```powershell
 git remote add origin https://github.com/Alail691/dsh-plugins-in-settings.git
 git push -u origin main
+git tag v1.0.0 && git push origin v1.0.0
 ```
 
 > 仓库**必须先在 GitHub 上建好**再推 —— `git push` 不会替你创建它。
 > 建的时候**不要**勾选 "Add a README / .gitignore / license"，本目录里已经有了。
-
-推送时若要求认证：HTTPS 需要 **Personal Access Token**（不是账号密码），
-或者改用 SSH：
-
-```powershell
-git remote set-url origin git@github.com:Alail691/dsh-plugins-in-settings.git
-```
 
 ### 2.3 ⚠️ 必须加 topic —— 插件市场就是靠它自动收录的
 
@@ -212,12 +219,19 @@ git add -A && git commit -m "..." && git push
 - [x] `lib/client.js`、`lib/index.js`、`cordis.patch.yml` 都已提交（3 个提交在 `main`）
 - [x] 已装进本机 desktop profile 并验证可加载
 
-**需要你在联网环境里做的：**
+**已核实（2026-10-16，用 GitHub API 查的）：**
 
-- [ ] 在 GitHub 上新建**公开**仓库 `dsh-plugins-in-settings`（不要勾 README/license）
-- [ ] `git remote add origin https://github.com/Alail691/dsh-plugins-in-settings.git`
-- [ ] `git push -u origin main`
-- [ ] 给仓库加 **`dsh-plugin`** topic ← 市场收录入口
-- [ ] 打过 tag 并建 Release（`git tag v1.0.0 && git push origin v1.0.0`）
-- [ ] （可选）`npm publish --access public`
-- [ ] （可选）重启 DSH Desktop，确认「设置 → 插件 → 插件管理」出现并能装一个插件
+- [x] 账号 `Alail691` 存在（id 197763924）
+- [ ] 仓库 `Alail691/dsh-plugins-in-settings` —— **还不存在（HTTP 404）**，需先创建
+
+**需要你在联网环境里做的（按顺序）：**
+
+1. - [ ] 在 <https://github.com/new> 新建**公开**仓库 `dsh-plugins-in-settings`
+   （**不要**勾 README / .gitignore / license）
+2. - [ ] `npm run push` ← 接远程、推 main、打 tag 一次做完
+   （或手工 `git remote add origin ...` + `git push -u origin main`）
+3. - [ ] 给仓库加 **`dsh-plugin`** topic ← **市场收录入口，不加就不会被收录**
+   （GitHub 的 topic 没有文件可提交，只能在页面上加；清单见 [GITHUB-SETUP.md](GITHUB-SETUP.md)）
+4. - [ ] 去 GitHub 基于 tag 建一个 Release
+5. - [ ] （可选）`npm publish --access public`
+6. - [ ] （可选）重启 DSH Desktop，确认「设置 → 插件 → 插件管理」出现并能装一个插件

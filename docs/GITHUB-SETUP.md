@@ -5,6 +5,34 @@ GitHub 的 topic **没有**对应的文件可以提交 —— 必须在仓库页
 
 ---
 
+## 当前状态（已核实）
+
+用 GitHub API 查过（2026-10-16）：
+
+| 检查项 | 结果 |
+|---|---|
+| 账号 `Alail691` | ✅ 存在（id 197763924） |
+| 仓库 `Alail691/dsh-plugins-in-settings` | ❌ **还不存在**（HTTP 404） |
+
+所以第一步是**建仓库**（见下），推之前它必须先存在。
+
+> 注：本机 curl 走的是 schannel，TLS 会报 `SEC_E_NO_CREDENTIALS`；
+> 用 Node 的 `https` 模块则正常。要命令行查 GitHub，用 Node 或浏览器，
+> 别被 curl 的报错误导成"没网"。
+
+---
+
+## 第一步：建仓库
+
+在 <https://github.com/new> 建一个**公开**仓库：
+
+- **Repository name**：`dsh-plugins-in-settings`（必须与包名一致）
+- **不要**勾 "Add a README file" / "Add .gitignore" / "Choose a license"
+  —— 本目录里都已有，勾了会冲突
+- 建完把地址记下：`https://github.com/Alail691/dsh-plugins-in-settings.git`
+
+---
+
 ## 必须做的：加 `dsh-plugin` topic
 
 > **这是插件市场的收录入口。** 市场（DSH Plugin Hub）每天抓取带 `dsh-plugin`

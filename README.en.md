@@ -176,6 +176,15 @@ npm run publish:check # publish readiness (22 checks): placeholders / private / 
 npm run verify        # all three, in order
 ```
 
+**Publishing to GitHub** (for the repository author):
+
+```powershell
+npm run push:check    # check only: branch, working tree, whether the repo exists, dsh-plugin topic
+npm run push          # add the remote + push main + tag
+```
+
+See [`docs/PUBLISHING.md`](docs/PUBLISHING.md) and [`docs/GITHUB-SETUP.md`](docs/GITHUB-SETUP.md).
+
 - `test/run.mjs` checks whether **our own shape** is right: artifact contract, pure-function
   normalization, registration contract, and both the success and failure paths of the data layer
   (including the install chain's `ready` / `refused` / lost-reply / `too-late` branches).
