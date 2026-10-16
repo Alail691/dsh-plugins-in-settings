@@ -376,7 +376,280 @@ function flattenSubtree(input, out = []) {
   return out;
 }
 
-/* ──────────────────── 6. 分隔线：宿主产物的静态核对 ──────────────────── */
+/* ──────────────────── 7. 安装：数据层 ──────────────────── */
+
+const { normalizeInstallResult, normalizeRegistries } = client.__internals;
+
+eq("normalizeInstallResult：success",
+  normalizeInstallResult({ application: "success" }).application, "success");
+eq("normalizeInstallResult：restart-required",
+  normalizeInstallResult({ application: "restart-required" }).application, "restart-required");
+eq("normalizeInstallResult：failed",
+  normalizeInstallResult({ application: "failed" }).application, "failed");
+eq("normalizeInstallResult：cancelled",
+  normalizeInstallResult({ application: "cancelled" }).application, "cancelled");
+eq("normalizeInstallResult：认不出的 application → unknown（不谎报成功）",
+  normalizeInstallResult({ application: "weird" }).application, "unknown");
+eq("normalizeInstallResult：null → unknown",
+  normalizeInstallResult(null).application, "unknown");
+eq("normalizeInstallResult：带 bundle 时归一化它",
+  normalizeInstallResult({ application: "success", bundle: { packageName: "p" } }).bundle.name, "p");
+eq("normalizeInstallResult：无 bundle 时为 null",
+  normalizeInstallResult({ application: "success" }).bundle, null);
+eq("normalizeInstallResult：error 转文字",
+  normalizeInstallResult({ application: "failed", error: { code: "E_X" } }).error, "E_X");
+eq("normalizeInstallResult：pendingBuilds 数组保留",
+  normalizeInstallResult({ application: "failed", pendingBuilds: ["a", "b"] }).pendingBuilds, ["a", "b"]);
+eq("normalizeInstallResult：pendingBuilds 非数组则空",
+  normalizeInstallResult({ application: "failed", pendingBuilds: "x" }).pendingBuilds, []);
+
+eq("normalizeRegistries：字符串元素", normalizeRegistries(["https://a"]).length, 1);
+eq("normalizeRegistries：对象取 url",
+  normalizeRegistries([{ id: "npm", label: "官方", url: "https://r" }])[0].value, "https://r");
+eq("normalizeRegistries：对象取 registry 退路",
+  normalizeRegistries([{ registry: "https://r2" }])[0].value, "https://r2");
+eq("normalizeRegistries：无地址的条目被丢弃", normalizeRegistries([{ label: "x" }]).length, 0);
+eq("normalizeRegistries：非数组安全", normalizeRegistries(null).length, 0);
+
+// 7.2 canInstall：只有 inspect + installBundle 都在才算能装
+{
+  const full = client.__internals.createManagerView({
+    listBundles: async () => ({}),
+    inspect: async () => ({ ok: true, value: { status: "ready" } }),
+    installBundle: async () => ({ ok: true, value: { application: "success" } }),
+  });
+  eq("canInstall：方法齐全为 true", full.canInstall(), true);
+  full.dispose();
+
+  const manageOnly = client.__internals.createManagerView({
+    listBundles: async () => ({}),
+    setBundleEnabled: async () => ({}),
+  });
+  eq("canInstall：旧宿主（只有管理方法）为 false", manageOnly.canInstall(), false);
+  manageOnly.dispose();
+}
+
+// 7.3 inspect：ready / refused / ok:false 三条路
+{
+  const view = client.__internals.createManagerView({
+    inspect: async (spec) => spec === "good"
+      ? { ok: true, value: { status: "ready" } }
+      : { ok: true, value: { status: "refused", reason: "不是插件包", problem: "no-bundle" } },
+  });
+  const ready = await view.inspect("good");
+  eq("inspect：ready → ok", ready.ok, true);
+
+  const refused = await view.inspect("bad");
+  eq("inspect：refused → !ok", refused.ok, false);
+  eq("inspect：refused 带上 reason", refused.error, "不是插件包");
+  eq("inspect：refused 带上 problem 码", refused.problem, "no-bundle");
+  view.dispose();
+}
+
+// 7.4 inspect 抛错 / ok:false 都要收敛成可读文字
+{
+  const view = client.__internals.createManagerView({
+    inspect: async () => { throw new Error("host offline"); },
+  });
+  const failed = await view.inspect("x");
+  eq("inspect 抛错：!ok", failed.ok, false);
+  eq("inspect 抛错：带原因", failed.error, "host offline");
+  view.dispose();
+
+  const view2 = client.__internals.createManagerView({
+    inspect: async () => ({ ok: false, error: { code: "E_NET" } }),
+  });
+  const failed2 = await view2.inspect("x");
+  eq("inspect ok:false：取 error.code", failed2.error, "E_NET");
+  view2.dispose();
+}
+
+// 7.5 installBundle：透传参数 + 归一化结局
+{
+  const calls = spy(async () => ({ ok: true, value: { application: "success", bundle: { packageName: "new-p" } } }));
+  const view = client.__internals.createManagerView({ installBundle: calls });
+  const result = await view.installBundle("new-p", {
+    enabled: true, requestId: "req-1", registry: "https://r", approvedBuilds: ["sharp"],
+  });
+  eq("installBundle：成功", result.ok, true);
+  eq("installBundle：结局归一化", result.result.application, "success");
+  eq("installBundle：bundle 归一化", result.result.bundle.name, "new-p");
+  const payload = calls.calls[0][1];
+  eq("installBundle：透传 enabled", payload.enabled, true);
+  eq("installBundle：透传 requestId", payload.requestId, "req-1");
+  eq("installBundle：透传 registry", payload.registry, "https://r");
+  eq("installBundle：透传 approvedBuilds", payload.approvedBuilds, ["sharp"]);
+  view.dispose();
+}
+
+// 7.6 installBundle 不带 approvedBuilds 时不该凭空造这个字段
+{
+  const calls = spy(async () => ({ ok: true, value: { application: "success" } }));
+  const view = client.__internals.createManagerView({ installBundle: calls });
+  await view.installBundle("p", { enabled: true, requestId: "r" });
+  eq("installBundle：无 approvedBuilds 时不带该字段",
+    "approvedBuilds" in calls.calls[0][1], false);
+  view.dispose();
+}
+
+// 7.7 waitForInstall：value 为 null = 结果不明（不能当成功）
+{
+  const view = client.__internals.createManagerView({
+    waitForInstall: async () => ({ ok: true, value: null }),
+  });
+  const recovered = await view.waitForInstall("req-x");
+  eq("waitForInstall：null 仍算调用成功", recovered.ok, true);
+  eq("waitForInstall：但结果为 null（不明）", recovered.result, null);
+  view.dispose();
+}
+
+// 7.8 cancelInstall：cancelled 与 too-late 都要能读出来
+{
+  const view = client.__internals.createManagerView({
+    cancelInstall: async (id) => ({ ok: true, value: { status: id === "a" ? "cancelled" : "too-late" } }),
+  });
+  eq("cancelInstall：cancelled", (await view.cancelInstall("a")).status, "cancelled");
+  eq("cancelInstall：too-late", (await view.cancelInstall("b")).status, "too-late");
+  view.dispose();
+}
+
+// 7.9 registries：读失败退回空列表（不抛）
+{
+  const view = client.__internals.createManagerView({
+    registries: async () => { throw new Error("nope"); },
+  });
+  const answer = await view.registries();
+  eq("registries 失败：!ok", answer.ok, false);
+  eq("registries 失败：列表为空", answer.list, []);
+  view.dispose();
+}
+
+/* ──────────────────── 8. 安装：界面路径 ──────────────────── */
+
+/** 把 InstallPanel 渲染出来，返回 { node, session }。 */
+function renderInstall(Component, t, manager, session) {
+  const props = { t, manager, onInstalled: () => {} };
+  if (session !== undefined) {
+    return { node: loaded.rerender(session.instance, session.type, props), session };
+  }
+  const rendered = loaded.render(Component, props);
+  return { node: rendered.output, session: { instance: rendered.instance, type: Component } };
+}
+
+{
+  const remote = {
+    pluginManager: {
+      listBundles: async () => ({ official: [], installed: [] }),
+      inspect: async (spec) => spec === "good"
+        ? { ok: true, value: { status: "ready" } }
+        : { ok: true, value: { status: "refused", reason: "不是插件包" } },
+      installBundle: async (spec) => spec === "boom"
+        ? { ok: true, value: { application: "failed", error: "pnpm 拒绝" } }
+        : { ok: true, value: { application: "success", bundle: { packageName: spec } } },
+      registries: async () => ({ ok: true, value: [{ id: "npm", label: "官方", url: "https://r" }] }),
+      cancelInstall: async () => ({ ok: true, value: { status: "cancelled" } }),
+    },
+  };
+  const fake = createFakeCtx({ remote });
+  client.apply(fake.ctx);
+  const { registration, Component } = fake.registrations[0];
+  const manager = client.__internals.createManagerView(remote.pluginManager);
+
+  // 8.1 表格能渲染，且初始是 idle
+  const first = renderInstall(client.__internals.InstallPanel, (k) => k, manager);
+  eq("安装面板：初始 phase 为 idle", first.node.props["data-pis-install"], "idle");
+
+  // 8.2 空规格点安装：不发请求，只报错
+  const nodes = flattenSubtree(first.node.props.children);
+  const button = nodes.find((n) => n.type === "button" && n.props.children === "install");
+  check("安装面板：有「安装」按钮", button !== undefined);
+  button.props.onClick();
+  const afterEmpty = renderInstall(client.__internals.InstallPanel, (k) => k, manager, first.session);
+  eq("安装面板：空规格仍是 idle", afterEmpty.node.props["data-pis-install"], "idle");
+  check("安装面板：空规格给出提示",
+    flattenSubtree(afterEmpty.node.props.children).some((n) => n.type === "p" && n.props.className === "pis-error"));
+
+  // 8.3 填一个会被拒绝的规格 → phase 回到 idle，并显示原因
+  const input = flattenSubtree(afterEmpty.node.props.children).find((n) => n.type === "input");
+  input.props.onChange({ target: { value: "bad" } });
+  const filled = renderInstall(client.__internals.InstallPanel, (k) => k, manager, first.session);
+  const button2 = flattenSubtree(filled.node.props.children)
+    .find((n) => n.type === "button" && n.props.children === "install");
+  button2.props.onClick();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const refused = renderInstall(client.__internals.InstallPanel, (k) => k, manager, first.session);
+  eq("安装面板：被拒绝后回到 idle", refused.node.props["data-pis-install"], "idle");
+  check("安装面板：被拒绝时显示宿主给的原因",
+    flattenSubtree(refused.node.props.children)
+      .some((n) => n.type === "p" && n.props.children === "不是插件包"));
+
+  // 8.4 填一个会成功的规格 → phase 变 done
+  const input2 = flattenSubtree(refused.node.props.children).find((n) => n.type === "input");
+  input2.props.onChange({ target: { value: "good" } });
+  const filled2 = renderInstall(client.__internals.InstallPanel, (k) => k, manager, first.session);
+  const button3 = flattenSubtree(filled2.node.props.children)
+    .find((n) => n.type === "button" && n.props.children === "install");
+  button3.props.onClick();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const done = renderInstall(client.__internals.InstallPanel, (k) => k, manager, first.session);
+  eq("安装面板：成功后 phase 为 done", done.node.props["data-pis-install"], "done");
+  check("安装面板：成功后有完成文案",
+    flattenSubtree(done.node.props.children).some((n) => n.type === "p" && n.props.className === "pis-ok"));
+
+  // 8.5 安装来源列表被渲染成下拉
+  check("安装面板：有安装源下拉",
+    flattenSubtree(done.node.props.children).some((n) => n.type === "select"));
+
+  manager.dispose();
+}
+
+// 8.6 安装失败：phase 变 failed，并显示 pnpm 挡下的构建脚本
+{
+  const remote = {
+    pluginManager: {
+      inspect: async () => ({ ok: true, value: { status: "ready" } }),
+      installBundle: async () => ({
+        ok: true,
+        value: { application: "failed", error: "构建脚本被挡下", pendingBuilds: ["sharp", "esbuild"] },
+      }),
+      registries: async () => ({ ok: true, value: [] }),
+    },
+  };
+  const manager = client.__internals.createManagerView(remote.pluginManager);
+  const first = renderInstall(client.__internals.InstallPanel, (k) => k, manager);
+  const input = flattenSubtree(first.node.props.children).find((n) => n.type === "input");
+  input.props.onChange({ target: { value: "boom" } });
+  const filled = renderInstall(client.__internals.InstallPanel, (k) => k, manager, first.session);
+  const go = flattenSubtree(filled.node.props.children)
+    .find((n) => n.type === "button" && n.props.children === "install");
+  go.props.onClick();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const failed = renderInstall(client.__internals.InstallPanel, (k) => k, manager, first.session);
+  eq("安装失败：phase 为 failed", failed.node.props["data-pis-install"], "failed");
+  const failedNodes = flattenSubtree(failed.node.props.children);
+  check("安装失败：显示失败原因",
+    failedNodes.some((n) => n.type === "p" && n.props.children === "构建脚本被挡下"));
+  check("安装失败：列出被挡下的构建脚本",
+    failedNodes.some((n) => n.type === "ul" && n.props.className === "pis-builds"));
+  check("安装失败：给出「同意并重试」",
+    failedNodes.some((n) => n.type === "button" && n.props.children === "installApproveBuilds"));
+  manager.dispose();
+}
+
+// 8.7 远程缺 installBundle 时：面板仍在，但安装按钮是禁用的
+{
+  const manager = client.__internals.createManagerView({ listBundles: async () => ({}) });
+  const rendered = renderInstall(client.__internals.InstallPanel, (k) => k, manager);
+  const go = flattenSubtree(rendered.node.props.children)
+    .find((n) => n.type === "button" && n.props.children === "install");
+  eq("旧宿主：安装按钮被禁用", go.props.disabled, true);
+  manager.dispose();
+}
+
+/* ──────────────────── 9. 产物静态核对 ──────────────────── */
 
 {
   // 宿主半边要求产物里出现这些标志；这里直接对产物做同样的检查，
@@ -396,6 +669,10 @@ function flattenSubtree(input, out = []) {
   check("产物导出 apply", /exports\.apply\s*=/.test(bundle));
   check("产物零第三方 require（只有 react 面）",
     [...bundle.matchAll(/require\("([^"]+)"\)/g)].every((m) => ["react", "react/jsx-runtime", "react-dom"].includes(m[1])));
+  // 安装相关的远程方法名必须在产物里（宿主半边的静态核对也会查）
+  for (const method of ["inspect", "installBundle", "waitForInstall", "cancelInstall"]) {
+    check(`产物含安装方法名：${method}`, bundle.includes(`"${method}"`));
+  }
 }
 
 /* ───────────────────────── 结果 ───────────────────────── */

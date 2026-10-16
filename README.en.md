@@ -2,8 +2,8 @@
 
 Brings the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) **sidebar's
 "Plugins" page into Settings**: a new **"Plugin manager"** tab inside **Settings → Plugins** that
-embeds the full official plugin panel — browse official and installed bundles, switch a bundle on or
-off, switch an individual plugin row, and uninstall.
+brings in what the official plugin panel does — browse official and installed bundles,
+**add a plugin**, switch a bundle on or off, switch an individual plugin row, and uninstall.
 
 > The sidebar's own "Plugins" entry is left **exactly as it is**. This plugin adds a second way in;
 > it does not dismantle the first one, so neither can break the other.
@@ -21,6 +21,12 @@ Settings → Plugins (the official page)
 │  │ ▔▔▔▔▔▔▔▔     │              │  ← the tab this adds   │
 │  ├──────────────┴──────────────┴──────────────────────┐ │
 │  │ Changes apply live; a few plugins need…    [Refresh] │ │
+│  │                                                     │ │
+│  │ ┌─ Add a plugin ──────────────────────────────────┐ │ │
+│  │ │ Enter a package name, GitHub address, or path.   │ │ │
+│  │ │ [dsh-plugin-whale-pet    ] [Registry▾] [Install] │ │ │
+│  │ │ Make sure the plugin's source is trustworthy.    │ │ │
+│  │ └─────────────────────────────────────────────────┘ │ │
 │  │                                                     │ │
 │  │ Official                                            │ │
 │  │ ┌─────────────────────────────────────────────────┐ │ │
@@ -40,9 +46,23 @@ Settings → Plugins (the official page)
 ```
 
 **Relationship to the official panel**: this plugin does not reimplement an installer. Listing,
-switching and uninstalling all go through the **same official remote interface**
+installing, switching and uninstalling all go through the **same official remote interface**
 (`remote.pluginManager`) — whatever the official panel does is exactly what happens here, so the two
 can never drift apart.
+
+### "Add plugin" in four steps
+
+1. **Give a spec** — a package name (`dsh-xxx`), `github:owner/repo`, or an absolute local path.
+2. **The host reads it first** (`inspect`) — a spec that is not a plugin package, whose registry is
+   unreachable, or that pnpm would refuse is reported **before anything is installed**, with your
+   input kept for editing.
+3. **Install for real** (`installBundle`) — installed **enabled**, and the list refreshes when done.
+4. **Read the outcome** — from the host's `application`: installed / installed but needs a restart /
+   failed (including install scripts pnpm blocked, with **Allow and retry**) / cancelled.
+
+You can **cancel at any point**. If the reply is lost mid-flight (timeout, dropped connection), the
+plugin asks the host for that same task's result by id; when the host has no record, it says the
+outcome is **unknown** rather than claiming success.
 
 ## Install
 
@@ -110,9 +130,18 @@ So this is the natural, least fragile place to fold plugins into Settings:
 | Purpose | Interface |
 |---|---|
 | List bundles | `ctx.remote.pluginManager.listBundles()` |
+| **Pre-install check** | `ctx.remote.pluginManager.inspect(spec, { registry }, signal)` |
+| **Install** | `ctx.remote.pluginManager.installBundle(spec, { enabled, requestId, registry, approvedBuilds? })` |
+| **Recover a result** | `ctx.remote.pluginManager.waitForInstall(requestId)` |
+| **Cancel** | `ctx.remote.pluginManager.cancelInstall(requestId)` |
 | Switch a bundle | `ctx.remote.pluginManager.setBundleEnabled(name, enabled)` |
 | Switch a plugin row | `ctx.remote.pluginManager.setPluginEnabled(entryId, enabled)` |
 | Uninstall | `ctx.remote.pluginManager.removeBundle(name)` |
+
+Installing is a **four-method chain**: `inspect` asks whether the spec can be installed,
+`installBundle` really starts it under a **`requestId` this plugin generates**, a lost reply is
+recovered with `waitForInstall` under that same id, and a mid-flight cancel goes through
+`cancelInstall` (which may answer `too-late`, meaning it already finished).
 
 `remote.pluginManager` is exposed by the host half of the official `ui-plugin-manager`. This plugin
 **soft-probes** it (`ctx.get("remote")`) instead of declaring it as a hard `inject` dependency —
@@ -124,8 +153,15 @@ When the probe fails, the tab shows a readable "unavailable" note and **everythi
 - **fail-open**: a missing remote namespace, missing methods, a failed list read, or any unrecognized
   shape collapses into a readable line or an empty list. Nothing throws, and Settings, the official
   Plugins page, and the sidebar entry are never affected.
+- **It never claims a false success**: the install outcome is decided by `application`, and an
+  unrecognized value counts as *unknown* rather than success. A lost reply is recovered from the host
+  first; if the host has no record, the plugin says so.
+- **Older hosts degrade gracefully**: on a host with the management methods but no install methods,
+  the Install button is **disabled** and everything else keeps working — one missing method never
+  takes down the whole page.
 - **A failed refresh keeps the previous list** (same rhythm as the official panel) and appends one
   error line below it.
+- **An install can be cancelled at any point**, and cancelling leaves no half-installed illusion.
 - **Uninstall takes two clicks** (the first becomes "Confirm uninstall", blur reverts it).
 - **Zero third-party dependencies**: only `react` and `react/jsx-runtime` from the platform seed
   table. No build step — `lib/client.js` is the published artifact (hand-written and readable).
@@ -134,12 +170,13 @@ When the probe fails, the tab shows a readable "unavailable" note and **everythi
 ## Development
 
 ```powershell
-npm test            # offline assertions (97 checks)
-npm run preflight   # verify contracts against the real installed official artifacts (24 checks)
+npm test            # offline assertions (154 checks)
+npm run preflight   # verify contracts against the real installed official artifacts (35 checks)
 ```
 
 - `test/run.mjs` checks whether **our own shape** is right: artifact contract, pure-function
-  normalization, registration contract, and both the success and failure paths of the data layer.
+  normalization, registration contract, and both the success and failure paths of the data layer
+  (including the install chain's `ready` / `refused` / lost-reply / `too-late` branches).
 - `test/preflight.mjs` checks whether **the place we hook into still exists**: it reads the official
   `ui-settings-plugins` / `ui-settings-plugin-inventory` / `ui-plugin-manager` artifacts (from the
   profile's `node_modules` or from `app.asar`) and verifies slot names, registration shape, and which
@@ -166,14 +203,19 @@ registration path execute the real code.
 - The shape of `listBundles()`'s response is decided by the host; this plugin reads the fields it has
   observed (`official` / `installed`, plus a flat array and `{ bundles: [] }` as fallbacks) and shows
   an empty list rather than guessing.
-- There is no "install a new plugin" input box (package name / git address). That is the official
-  panel's full flow, involving registry probing, the pnpm output stream, cancellation and retry. This
-  plugin focuses on **managing plugins that are already there**; the sidebar's official panel remains
-  available for installing new ones.
+- **Registries** come from the host's `registries()` plus one "default registry". The official panel
+  additionally **probes** the official npm registry and npmmirror in parallel on first use, remembers
+  the choice in `localStorage`, and offers the mirror when GitHub is unreachable — **this plugin does
+  none of that**. The registry defaults to whatever pnpm is configured with; pick another from the
+  dropdown when you need to.
+- **No live pnpm output.** The official panel folds the pnpm command line and its output behind
+  "Show install details"; this plugin reports the final outcome and the failure reason only.
+- Installs always pass **`enabled: true`** (install and enable in one go). The official panel
+  installs first and lets you decide separately whether to enable it now.
 
-> That last point is a deliberate trade-off. If you want installation inside this tab too, open an
-> issue — the official flow runs through `inspect` / `installBundle` / `waitForInstall`, which is
-> feasible to wire up, but it is a substantially larger amount of code.
+Those three are deliberate trade-offs: make management solid here, and leave the long tail of the
+install experience to the official panel (whose sidebar entry is still there). Open an issue if you
+want any of them covered.
 
 ## License
 

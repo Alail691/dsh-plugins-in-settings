@@ -151,6 +151,18 @@ if (pluginManager !== null) {
   for (const method of ["listBundles", "setBundleEnabled", "setPluginEnabled", "removeBundle"]) {
     check(`官方插件面板仍提供 ${method}`, bundle.includes(method));
   }
+  // 安装链路：本插件的「添加插件」表单直接调这四个方法
+  for (const method of ["inspect", "installBundle", "waitForInstall", "cancelInstall"]) {
+    check(`官方插件面板仍提供安装方法 ${method}`, bundle.includes(method));
+  }
+  // 结局字段：本插件按 application 判断成功 / 失败 / 取消 / 未知
+  for (const outcome of ["success", "restart-required", "failed", "cancelled"]) {
+    check(`官方仍使用 install application 取值 ${outcome}`, bundle.includes(`"${outcome}"`));
+  }
+  check("官方仍用 ok/value 信封包住远程回应", bundle.includes(".ok") && bundle.includes(".value"));
+  // 本插件依赖 pnpm 构建脚本待批的清单，用来给「同意并重试」
+  check("官方仍回报 pendingBuilds（本插件的「同意并重试」依赖它）", bundle.includes("pendingBuilds"));
+  check("官方仍接受 approvedBuilds 参数", bundle.includes("approvedBuilds"));
 } else {
   skip("pluginManager 远程契约", "没在 profile node_modules 或 app.asar 里找到 ui-plugin-manager");
 }
