@@ -1,0 +1,12 @@
+# 仓库内的换行一律按 LF 存；Windows 检出时再交给 git 转换。
+# 这样跨平台 clone 不会把脚本改成 CRLF（CRLF 的 .cmd / .ps1 在别的环境会出问题）。
+* text=auto eol=lf
+
+# 明确的二进制
+*.png binary
+*.jpg binary
+*.zip binary
+*.tgz binary
+
+# 测试基准：GitHub 语言统计里不要把 JS 产物算成"文档"
+lib/client.js linguist-language=JavaScript

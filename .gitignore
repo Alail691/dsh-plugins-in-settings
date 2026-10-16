@@ -1,0 +1,16 @@
+# 依赖与产物
+node_modules/
+dist/
+*.tgz
+
+# 本地打包产物
+pack-dist.ps1
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 安装器留下的备份（profile 的 package.json.bak-*）
+*.bak-*

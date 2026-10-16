@@ -1,0 +1,6 @@
+# 本插件的组合包（bundle）补丁：被 DSH 的 Loader 追加到 profile 的层上。
+# 只有一行 —— 把本包作为 cordis 树上的一条 Loader 条目挂进去。
+# 客户端半边（`lib/client.js`）能被编进启动图，靠的就是「宿主 Loader 里有这一条」。
+- insert:
+    - id: plugins-in-settings
+      name: dsh-plugins-in-settings

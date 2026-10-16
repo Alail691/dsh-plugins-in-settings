@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    # 本插件是零依赖的，所以 CI 不需要 pnpm install —— 直接跑断言套件。
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # 离线断言套件：产物契约 / 纯函数 / 注册契约 / 数据路径的成败两条路
+      - name: Offline assertions
+        run: node test/run.mjs
+
+      # 预检：在 CI 上没有安装 DSH，所以官方产物找不到 —— 相关项会**如实跳过**
+      # 并把跳过原因打印出来，退出码仍是 0。它在这里的价值是守住本包自己的清单与产物契约。
+      - name: Contract preflight
+        run: node test/preflight.mjs

@@ -1,0 +1,59 @@
+{
+  "name": "dsh-plugins-in-settings",
+  "version": "1.0.0",
+  "description": "把 DSH 侧栏的「插件」整体收进设置：在「设置 → 插件」里新增一个「插件管理」标签页，内嵌官方插件面板的全部能力（浏览 / 安装 / 开关 / 卸载）。Bring the sidebar's Plugins page into Settings as a tab, embedding the official plugin manager.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "cordis.patch.yml",
+    "install-profile.ps1",
+    "install.cmd",
+    "README.md",
+    "README.en.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "plugin-manager",
+    "settings",
+    "ui"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node test/run.mjs",
+    "preflight": "node test/preflight.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/REPLACE_WITH_YOUR_GITHUB_USERNAME/dsh-plugins-in-settings.git"
+  },
+  "homepage": "https://github.com/REPLACE_WITH_YOUR_GITHUB_USERNAME/dsh-plugins-in-settings#readme",
+  "bugs": {
+    "url": "https://github.com/REPLACE_WITH_YOUR_GITHUB_USERNAME/dsh-plugins-in-settings/issues"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}
