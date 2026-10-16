@@ -37,7 +37,9 @@
   },
   "scripts": {
     "test": "node test/run.mjs",
-    "preflight": "node test/preflight.mjs"
+    "preflight": "node test/preflight.mjs",
+    "publish:check": "node test/publish-check.mjs",
+    "verify": "node test/run.mjs && node test/preflight.mjs && node test/publish-check.mjs"
   },
   "repository": {
     "type": "git",

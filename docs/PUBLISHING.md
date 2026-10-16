@@ -31,12 +31,18 @@ node -e "const p=require('./package.json');console.log(p.repository.url);console
 ## 1. 发布前自检
 
 ```powershell
-node test/run.mjs         # 离线断言：必须 97 项全过
-node test/preflight.mjs   # 契约预检：在装过 DSH 的机器上应当 0 跳过
+node test/run.mjs           # 离线断言：必须 154 项全过
+node test/preflight.mjs     # 契约预检：在装过 DSH 的机器上应当 0 跳过（35 项）
+node test/publish-check.mjs # 发布自检：必须 0 错误（22 项）
 ```
 
+（或一条 `npm run verify` 跑完这三个。）
+
 `preflight` 的**跳过项要在意**：它说明"我们挂的那个槽位在你这台机器上没被验证过"。
-在装过 DSH 的机器上跑，理想输出是 `✓ 预检通过：24 项` 且**没有任何跳过**。
+在装过 DSH 的机器上跑，理想输出是 `✓ 预检通过：35 项` 且**没有任何跳过**。
+
+（没替换用户名时 `publish-check` 会报 `有 3 处未替换的占位符` —— 那是第 0 节没做，
+不是插件本身有问题。）
 
 另外确认这三件事（CI 也会查）：
 
@@ -189,8 +195,9 @@ git add -A && git commit -m "..." && git push
 ## 5. 自查清单（发布前逐项打勾）
 
 - [ ] `package.json` 里的用户名占位符已替换
-- [ ] `node test/run.mjs` → 97 项全过
-- [ ] `node test/preflight.mjs` → 无跳过项
+- [ ] `node test/run.mjs` → 154 项全过
+- [ ] `node test/preflight.mjs` → 35 项、无跳过
+- [ ] `node test/publish-check.mjs` → 22 项、0 错误
 - [ ] 没有 `"private": true`
 - [ ] `lib/client.js`、`lib/index.js`、`cordis.patch.yml` 都已提交
 - [ ] GitHub 仓库已加 **`dsh-plugin`** topic

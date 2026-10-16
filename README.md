@@ -168,8 +168,10 @@ id 为 `plugins` 的设置页（侧栏文案「内置插件」），并声明了
 ## 开发
 
 ```powershell
-npm test        # 离线断言套件（154 项）
-npm run preflight   # 对着**真实安装**的官方产物核对契约（35 项）
+npm test              # 离线断言套件（154 项）
+npm run preflight     # 对着**真实安装**的官方产物核对契约（35 项）
+npm run publish:check # 发布自检（22 项）：占位符 / private / files 白名单 / 产物一致性
+npm run verify        # 上面三个一起跑
 ```
 
 - `test/run.mjs` 验的是"我们自己的形状对不对"：产物契约、纯函数归一化、
@@ -177,8 +179,11 @@ npm run preflight   # 对着**真实安装**的官方产物核对契约（35 项
 - `test/preflight.mjs` 验的是"我们挂的那个地方还在不在"：直接读官方
   `ui-settings-plugins` / `ui-settings-plugin-inventory` / `ui-plugin-manager`
   的产物（从 profile 的 `node_modules` 或 `app.asar` 里找），核对槽位名、
-  注册形状、以及官方占用的 id。**官方升级改掉这些时先在这里炸**，
-  而不是等装进真机才发现"设置里是空的"。
+  注册形状、官方占用的 id，以及安装链路的四个方法名与四种结局取值。
+  **官方升级改掉这些时先在这里炸**，而不是等装进真机才发现"设置里是空的"。
+- `test/publish-check.mjs` 验的是"**这个包本身够不够格被发布**"：占位符有没有替换、
+  有没有误加 `private`、`files` 白名单里的文件是否都在、宿主半边的核对标志
+  与产物是否一致。发之前跑一次，全绿再推。
 
 本机没有可离线使用的真 React（`app.asar` 里不带），所以渲染层是
 `test/harness.mjs` 里的**保状态 React 桩**（`useState` / `useMemo` / `useCallback` /

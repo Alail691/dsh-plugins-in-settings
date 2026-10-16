@@ -170,8 +170,10 @@ When the probe fails, the tab shows a readable "unavailable" note and **everythi
 ## Development
 
 ```powershell
-npm test            # offline assertions (154 checks)
-npm run preflight   # verify contracts against the real installed official artifacts (35 checks)
+npm test              # offline assertions (154 checks)
+npm run preflight     # verify contracts against the real installed official artifacts (35 checks)
+npm run publish:check # publish readiness (22 checks): placeholders / private / files allowlist / artifact consistency
+npm run verify        # all three, in order
 ```
 
 - `test/run.mjs` checks whether **our own shape** is right: artifact contract, pure-function

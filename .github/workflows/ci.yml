@@ -30,3 +30,10 @@ jobs:
       # 并把跳过原因打印出来，退出码仍是 0。它在这里的价值是守住本包自己的清单与产物契约。
       - name: Contract preflight
         run: node test/preflight.mjs
+
+      # 发布自检：placeholder / private / 依赖 / files 白名单 / 产物一致性。
+      # **不阻断 CI** —— 它会在作者还没填 GitHub 用户名时合理失败，那是发布前的事，
+      # 不该让每次 push 都红。真正的把关点在本地 `npm run publish:check`。
+      - name: Publish readiness (informational)
+        run: node test/publish-check.mjs
+        continue-on-error: true
