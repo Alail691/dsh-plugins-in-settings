@@ -26,14 +26,18 @@ jobs:
       - name: Offline assertions
         run: node test/run.mjs
 
+      # 推送助手的决策逻辑：用假的 git 与假的 GitHub API 跑，不联网、不碰真仓库。
+      # 这是回归测试 —— 它曾在"没有 origin"（首次推送的常态）时直接崩过。
+      - name: Push helper logic
+        run: node test/push-logic.test.mjs
+
       # 预检：在 CI 上没有安装 DSH，所以官方产物找不到 —— 相关项会**如实跳过**
       # 并把跳过原因打印出来，退出码仍是 0。它在这里的价值是守住本包自己的清单与产物契约。
       - name: Contract preflight
         run: node test/preflight.mjs
 
-      # 发布自检：placeholder / private / 依赖 / files 白名单 / 产物一致性。
-      # **不阻断 CI** —— 它会在作者还没填 GitHub 用户名时合理失败，那是发布前的事，
-      # 不该让每次 push 都红。真正的把关点在本地 `npm run publish:check`。
-      - name: Publish readiness (informational)
+      # 发布自检：占位符 / private / 依赖 / files 白名单 / 产物一致性。
+      # 在 CI 上应当全过（仓库里已填好用户名）；不过也不阻断，真正的把关点在本地。
+      - name: Publish readiness
         run: node test/publish-check.mjs
         continue-on-error: true

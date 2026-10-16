@@ -34,8 +34,6 @@ function ownerRepo() {
 
 function git(gitArgs, options = {}) {
   // capture:false 时用 inherit（直接接终端），否则管道取输出。
-  // 某些受限沙箱会禁止 Node 创建管道子进程（spawnSync EPERM），
-  // 所以这里把失败包装成可读的提示，而不是抛一个裸 EPERM。
   try {
     return execFileSync("git", gitArgs, {
       cwd: root,
@@ -43,15 +41,26 @@ function git(gitArgs, options = {}) {
       stdio: options.capture === false ? "inherit" : ["ignore", "pipe", "pipe"],
     }).trim();
   } catch (error) {
+    // 沙箱禁止 Node 创建管道子进程时，给一条能照做的命令，而不是抛裸 EPERM。
     if (error.code === "EPERM") {
       fail(
-        "无法启动 git（沙箱禁止 Node 创建管道子进程）",
-        "在你自己的终端里跑这条命令即可，例如：\n" +
+        "无法启动 git（受限沙箱禁止 Node 创建管道子进程）",
+        "在你自己的终端里跑这条命令即可：\n" +
         `  git ${gitArgs.join(" ")}\n` +
-        "（本脚本在普通终端下工作正常；受限沙箱里请手工执行。）",
+        "（本脚本在普通终端下工作正常。）",
       );
     }
-    throw error;
+    // 其余失败：把 git 自己说的话带出来。
+    // 少了这一段，调用方只会看到一个 "Command failed" 的堆栈，
+    // 而真正的原因（例如 "No such remote 'origin'"）就藏在 stderr 里被丢掉了。
+    const stderr = typeof error.stderr === "string" ? error.stderr.trim() : "";
+    const stdout = typeof error.stdout === "string" ? error.stdout.trim() : "";
+    const detail = stderr || stdout || error.message;
+    const wrapped = new Error(`git ${gitArgs.join(" ")} 失败：${detail}`);
+    wrapped.gitArgs = gitArgs;
+    wrapped.gitDetail = detail;
+    wrapped.exitCode = error.status;
+    throw wrapped;
   }
 }
 
@@ -105,13 +114,28 @@ if (dirty.length > 0) {
 }
 say("工作区  ：干净");
 
+/**
+ * 跑一条 git 命令，**允许它失败**，返回 `{ ok, out }`。
+ *
+ * 用来问那些"没有是正常状态"的问题 —— 例如 `git remote get-url origin`
+ * 在没有 origin 时以退出码 2 失败（`error: No such remote 'origin'`）。
+ * 直接当普通命令调会在**首次推送**这个最常见的情形下崩掉，
+ * 而这恰恰是脚本最该帮上忙的时候。
+ */
+function gitTry(gitArgs) {
+  try {
+    return { ok: true, out: git(gitArgs) };
+  } catch {
+    return { ok: false, out: "" };
+  }
+}
+
 const commits = git(["rev-list", "--count", "HEAD"]);
 say(`提交数  ：${commits}`);
 
-const existingRemote = git(["remote", "get-url", "origin"]).length > 0
-  ? git(["remote", "get-url", "origin"])
-  : null;
-say(`origin  ：${existingRemote ?? "(未设置)"}`);
+const remoteQuery = gitTry(["remote", "get-url", "origin"]);
+const existingRemote = remoteQuery.ok && remoteQuery.out.length > 0 ? remoteQuery.out : null;
+say(`origin  ：${existingRemote ?? "(未设置，推送时会自动加上)"}`);
 
 /* ── 3. 仓库是否已在 GitHub 上存在 ── */
 const repo = await api(`/repos/${slug}`);

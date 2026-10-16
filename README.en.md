@@ -170,10 +170,13 @@ When the probe fails, the tab shows a readable "unavailable" note and **everythi
 ## Development
 
 ```powershell
-npm test              # offline assertions (154 checks)
+npm test              # plugin assertions (154 checks) + push-helper logic (15 checks)
 npm run preflight     # verify contracts against the real installed official artifacts (35 checks)
 npm run publish:check # publish readiness (22 checks): placeholders / private / files allowlist / artifact consistency
-npm run verify        # all three, in order
+npm run verify        # everything, in order
+
+npm run test:plugin   # plugin assertions only
+npm run test:push     # push-helper logic only (fake git / fake GitHub API, no network)
 ```
 
 **Publishing to GitHub** (for the repository author):
@@ -193,6 +196,13 @@ See [`docs/PUBLISHING.md`](docs/PUBLISHING.md) and [`docs/GITHUB-SETUP.md`](docs
   profile's `node_modules` or from `app.asar`) and verifies slot names, registration shape, and which
   ids are taken. When an official upgrade changes these, **this fails first** instead of you
   discovering an empty Settings page on a real machine.
+
+- `test/push-logic.test.mjs` checks the **push helper's decision logic**: with a fake git and a fake
+  GitHub API it runs seven states (no origin / repo missing / topic missing / dirty tree / not on
+  `main` / origin pointing elsewhere / all green) and asserts it **continues when it should and stops
+  when it should**. No network, no real repository touched.
+  This is a **regression test** — the helper used to throw a raw stack trace in the "no origin yet"
+  state, which is both the most common state on a first push and the one where help matters most.
 
 No real React is available offline here (`app.asar` does not ship it), so the render layer runs
 against a **stateful React stub** in `test/harness.mjs` (`useState` / `useMemo` / `useCallback` /

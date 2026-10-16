@@ -168,10 +168,13 @@ id 为 `plugins` 的设置页（侧栏文案「内置插件」），并声明了
 ## 开发
 
 ```powershell
-npm test              # 离线断言套件（154 项）
+npm test              # 插件断言（154 项）+ 推送助手决策逻辑（15 项）
 npm run preflight     # 对着**真实安装**的官方产物核对契约（35 项）
 npm run publish:check # 发布自检（22 项）：占位符 / private / files 白名单 / 产物一致性
-npm run verify        # 上面三个一起跑
+npm run verify        # 全部一起跑
+
+npm run test:plugin   # 只跑插件断言
+npm run test:push     # 只跑推送助手逻辑（用假 git / 假 GitHub API，不联网）
 ```
 
 **发布到 GitHub**（面向仓库作者）：
@@ -193,6 +196,12 @@ npm run push          # 接远程 + 推 main + 打 tag
 - `test/publish-check.mjs` 验的是"**这个包本身够不够格被发布**"：占位符有没有替换、
   有没有误加 `private`、`files` 白名单里的文件是否都在、宿主半边的核对标志
   与产物是否一致。发之前跑一次，全绿再推。
+- `test/push-logic.test.mjs` 验的是**推送助手的决策逻辑**：用假的 git 与假的
+  GitHub API，把七种状态（没有 origin / 仓库不存在 / 缺 topic / 工作区脏 /
+  非 main 分支 / origin 指向别处 / 全绿）各跑一遍，断言它**该继续时继续、
+  该拦住时拦住**。不联网、不碰真仓库。
+  这是一份**回归测试** —— 它曾经在"还没有 origin"（首次推送的常态）
+  这个最容易崩、也最该帮上忙的状态下直接抛堆栈。
 
 本机没有可离线使用的真 React（`app.asar` 里不带），所以渲染层是
 `test/harness.mjs` 里的**保状态 React 桩**（`useState` / `useMemo` / `useCallback` /
