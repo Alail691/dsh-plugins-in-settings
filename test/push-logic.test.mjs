@@ -32,7 +32,7 @@ function buildScenario({ remote, repoStatus, topics, branch = "main", dirty = ""
 
   code = code.replace(
     /function git\(gitArgs, options = \{\}\) \{[\s\S]*?\n\}/,
-    `function git(gitArgs) {
+    `function git(gitArgs, options = {}) {
   const key = gitArgs.join(" ");
   const answer = __FAKE_GIT__(key);
   if (answer === null) {

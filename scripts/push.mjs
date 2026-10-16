@@ -34,12 +34,22 @@ function ownerRepo() {
 
 function git(gitArgs, options = {}) {
   // capture:false 时用 inherit（直接接终端），否则管道取输出。
+  const inherit = options.capture === false;
   try {
-    return execFileSync("git", gitArgs, {
+    const output = execFileSync("git", gitArgs, {
       cwd: root,
       encoding: "utf8",
-      stdio: options.capture === false ? "inherit" : ["ignore", "pipe", "pipe"],
-    }).trim();
+      stdio: inherit ? "inherit" : ["ignore", "pipe", "pipe"],
+    });
+    /*
+     * inherit 模式下 execFileSync 返回的是 **null**（输出直接进了终端，
+     * Node 没替我们捕获）。少了这一个判断，`.trim()` 会在**推送其实已经成功**
+     * 之后抛 TypeError，然后被下面的 catch 误报成"推送失败" ——
+     * 真机上就是这么演了一次：git 明明打出了 `* [new branch] main -> main`，
+     * 脚本却报失败，把用户往认证问题上带。
+     * 所以：没有输出可捕获时，返回空串，让"命令成功"这件事如实传递下去。
+     */
+    return typeof output === "string" ? output.trim() : "";
   } catch (error) {
     // 沙箱禁止 Node 创建管道子进程时，给一条能照做的命令，而不是抛裸 EPERM。
     if (error.code === "EPERM") {
@@ -50,12 +60,14 @@ function git(gitArgs, options = {}) {
         "（本脚本在普通终端下工作正常。）",
       );
     }
-    // 其余失败：把 git 自己说的话带出来。
-    // 少了这一段，调用方只会看到一个 "Command failed" 的堆栈，
-    // 而真正的原因（例如 "No such remote 'origin'"）就藏在 stderr 里被丢掉了。
+    /*
+     * 失败的原因优先取**捕获到的** stderr/stdout。
+     * inherit 模式下这两个字段是 undefined（错误信息已经直接打到终端上了），
+     * 那就退回 error.message —— 至少不会是一句空话。
+     */
     const stderr = typeof error.stderr === "string" ? error.stderr.trim() : "";
     const stdout = typeof error.stdout === "string" ? error.stdout.trim() : "";
-    const detail = stderr || stdout || error.message;
+    const detail = stderr || stdout || (inherit ? `退出码 ${error.status ?? "未知"}` : "") || error.message;
     const wrapped = new Error(`git ${gitArgs.join(" ")} 失败：${detail}`);
     wrapped.gitArgs = gitArgs;
     wrapped.gitDetail = detail;

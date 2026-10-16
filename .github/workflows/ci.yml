@@ -31,6 +31,12 @@ jobs:
       - name: Push helper logic
         run: node test/push-logic.test.mjs
 
+      # 真 git() 函数的返回值与错误处理（猴补丁 execFileSync）。
+      # 回归测试：inherit 模式下 execFileSync 返回 null，曾经 .trim() 抛错，
+      # 把**已经成功**的推送误报成失败。
+      - name: Push helper git() contract
+        run: node test/push-git.test.mjs
+
       # 预检：在 CI 上没有安装 DSH，所以官方产物找不到 —— 相关项会**如实跳过**
       # 并把跳过原因打印出来，退出码仍是 0。它在这里的价值是守住本包自己的清单与产物契约。
       - name: Contract preflight

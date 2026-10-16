@@ -36,12 +36,12 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node test/run.mjs && node test/push-logic.test.mjs",
+    "test": "node test/run.mjs && node test/push-logic.test.mjs && node test/push-git.test.mjs",
     "test:plugin": "node test/run.mjs",
-    "test:push": "node test/push-logic.test.mjs",
+    "test:push": "node test/push-logic.test.mjs && node test/push-git.test.mjs",
     "preflight": "node test/preflight.mjs",
     "publish:check": "node test/publish-check.mjs",
-    "verify": "node test/run.mjs && node test/push-logic.test.mjs && node test/preflight.mjs && node test/publish-check.mjs",
+    "verify": "node test/run.mjs && node test/push-logic.test.mjs && node test/push-git.test.mjs && node test/preflight.mjs && node test/publish-check.mjs",
     "push:check": "node scripts/push.mjs --check",
     "push": "node scripts/push.mjs"
   },
