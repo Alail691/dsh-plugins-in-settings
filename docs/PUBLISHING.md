@@ -8,21 +8,20 @@
 
 ---
 
-## 0. 先改掉仓库地址占位符
+## 0. 仓库地址占位符 —— ✅ 已完成
 
-`package.json` 里的 `REPLACE_WITH_YOUR_GITHUB_USERNAME` 必须换成你的 GitHub 用户名，
-否则 `repository` / `homepage` / `bugs` 三个字段都是坏的（插件市场和 npm 会读它们）。
+`package.json` 里的 `repository` / `homepage` / `bugs` 三个字段已经把占位符
+换成了 **Alail691**，`publish-check` 因此 22 项全过。
+
+换用户名（比如以后改了账号）时，可以用 Node 改写
+（比 PowerShell 的 `-replace` 稳：不会有 BOM / 编码问题）：
 
 ```powershell
 cd dsh-plugins-in-settings
 
-# 用 Node 改写（比 PowerShell 的 -replace 稳：不会有 BOM / 编码问题）
-node -e "const fs=require('fs');const f='package.json';fs.writeFileSync(f,fs.readFileSync(f,'utf8').split('REPLACE_WITH_YOUR_GITHUB_USERNAME').join('<你的用户名>'))"
-```
+node -e "const fs=require('fs');const f='package.json';fs.writeFileSync(f,fs.readFileSync(f,'utf8').split('旧用户名').join('新用户名'))"
 
-改完确认一下（三条都应当指向真实地址、且不再有 `REPLACE_WITH`）：
-
-```powershell
+# 确认三条都指向真实地址
 node -e "const p=require('./package.json');console.log(p.repository.url);console.log(p.homepage);console.log(p.bugs.url)"
 ```
 
@@ -62,17 +61,26 @@ node test/publish-check.mjs # 发布自检：必须 0 错误（22 项）
 **不要**勾选 "Add a README / .gitignore / license" —— 本目录里已经有了，
 勾了会产生冲突。
 
-### 2.2 初始化并推送
+### 2.2 推送
+
+仓库**已经初始化好并提交过**（3 个提交，`main` 分支），所以只需要接上远程再推：
 
 ```powershell
 cd dsh-plugins-in-settings
 
-git init -b main
-git add -A
-git commit -m "feat: 把侧栏「插件」综合进设置（设置 → 插件 → 插件管理）"
-
-git remote add origin https://github.com/<你的用户名>/dsh-plugins-in-settings.git
+# 用户名已按 Alail691 写进 package.json
+git remote add origin https://github.com/Alail691/dsh-plugins-in-settings.git
 git push -u origin main
+```
+
+> 仓库**必须先在 GitHub 上建好**再推 —— `git push` 不会替你创建它。
+> 建的时候**不要**勾选 "Add a README / .gitignore / license"，本目录里已经有了。
+
+推送时若要求认证：HTTPS 需要 **Personal Access Token**（不是账号密码），
+或者改用 SSH：
+
+```powershell
+git remote set-url origin git@github.com:Alail691/dsh-plugins-in-settings.git
 ```
 
 ### 2.3 ⚠️ 必须加 topic —— 插件市场就是靠它自动收录的
@@ -82,22 +90,20 @@ git push -u origin main
 > 将你的插件发布到 GitHub 并添加 **`dsh-plugin`** topic，
 > 即可被 DSH Plugin 插件目录自动发现与收录。
 
-也就是说 **topic 是收录入口，不是可选项**。仓库页面 → 右上角 ⚙️ (About) →
-Topics → 填 `dsh-plugin`，再加几个便于检索的：
+也就是说 **topic 是收录入口，不是可选项**，而且 GitHub 的 topic **没有文件可以提交**，
+必须在页面上手工设置。要填的清单与验证命令见
+[`GITHUB-SETUP.md`](GITHUB-SETUP.md)。
 
-```
-dsh-plugin
-dsh
-deepseek-harness
-plugin-manager
-settings
-```
+**最短路径**：仓库页面 → 右上角 ⚙️ (About) → Topics → 填 `dsh-plugin`（再加 `dsh`、
+`deepseek-harness`、`plugin-manager`、`settings` 便于检索）。
 
 仓库建好后可以用命令验证 topic 是否生效（需要 `gh`，没装就跳过）：
 
 ```powershell
-gh repo view <你的用户名>/dsh-plugins-in-settings --json repositoryTopics
+gh repo view Alail691/dsh-plugins-in-settings --json repositoryTopics
 ```
+
+没有 `gh` 的话，直接看仓库页面上「About」区域右侧是否显示了 topic 标签即可。
 
 ### 2.4 打一个 Release（可选但推荐）
 
@@ -122,7 +128,7 @@ git push origin v1.0.0
 收录后可以在官网看到插件详情页：
 
 ```
-https://dsh-plugin.org/plugins/<你的用户名>/dsh-plugins-in-settings
+https://dsh-plugin.org/plugins/Alail691/dsh-plugins-in-settings
 ```
 
 ### 3.2 主动提交 / 催收录（可选）
@@ -136,12 +142,14 @@ https://dsh-plugin.org/plugins/<你的用户名>/dsh-plugins-in-settings
 
 ```
 插件名：dsh-plugins-in-settings
-仓库：https://github.com/<你的用户名>/dsh-plugins-in-settings
-一句话：把 DSH 侧栏的「插件」收进设置 —— 在「设置 → 插件」里新增「插件管理」标签页，内嵌官方插件面板的全部管理能力。
+仓库：https://github.com/Alail691/dsh-plugins-in-settings
+一句话：把 DSH 侧栏的「插件」收进设置 —— 在「设置 → 插件」里新增「插件管理」标签页，
+        把官方插件面板的能力搬进来（浏览 / 添加插件 / 开关 / 卸载）。
 分类建议：界面与体验 / 设置
 语言：中文 + English（README.md / README.en.md）
 许可：MIT
 依赖：零运行时依赖，无构建步骤
+兼容：DSH Desktop（Electron 保留 profile 用 install.cmd 安装；其它 profile 可用 dsh plugin add）
 ```
 
 ### 3.3 关于 npm
@@ -161,8 +169,8 @@ npm publish --access public
 
 ### 4.1 别人怎么装
 
-三种（详见 README）：设置面板填 `github:<user>/dsh-plugins-in-settings`、命令行
-`dsh plugin --profile <非desktop> add github:<user>/dsh-plugins-in-settings`、
+三种（详见 README）：设置面板填 `github:Alail691/dsh-plugins-in-settings`、命令行
+`dsh plugin --profile <非desktop> add github:Alail691/dsh-plugins-in-settings`、
 或 `install.cmd`。
 
 ### 4.2 你自己怎么迭代
@@ -192,14 +200,24 @@ git add -A && git commit -m "..." && git push
 
 ---
 
-## 5. 自查清单（发布前逐项打勾）
+## 5. 自查清单
 
-- [ ] `package.json` 里的用户名占位符已替换
-- [ ] `node test/run.mjs` → 154 项全过
-- [ ] `node test/preflight.mjs` → 35 项、无跳过
-- [ ] `node test/publish-check.mjs` → 22 项、0 错误
-- [ ] 没有 `"private": true`
-- [ ] `lib/client.js`、`lib/index.js`、`cordis.patch.yml` 都已提交
-- [ ] GitHub 仓库已加 **`dsh-plugin`** topic
-- [ ] 打过 tag 并建了 Release
-- [ ] （可选）已发 npm
+**已经在仓库里做完的（不用再动）：**
+
+- [x] `package.json` 里的用户名占位符已替换为 `Alail691`
+- [x] `node test/run.mjs` → 154 项全过
+- [x] `node test/preflight.mjs` → 35 项、无跳过
+- [x] `node test/publish-check.mjs` → 22 项、0 错误
+- [x] 没有 `"private": true`、零运行时依赖
+- [x] `lib/client.js`、`lib/index.js`、`cordis.patch.yml` 都已提交（3 个提交在 `main`）
+- [x] 已装进本机 desktop profile 并验证可加载
+
+**需要你在联网环境里做的：**
+
+- [ ] 在 GitHub 上新建**公开**仓库 `dsh-plugins-in-settings`（不要勾 README/license）
+- [ ] `git remote add origin https://github.com/Alail691/dsh-plugins-in-settings.git`
+- [ ] `git push -u origin main`
+- [ ] 给仓库加 **`dsh-plugin`** topic ← 市场收录入口
+- [ ] 打过 tag 并建 Release（`git tag v1.0.0 && git push origin v1.0.0`）
+- [ ] （可选）`npm publish --access public`
+- [ ] （可选）重启 DSH Desktop，确认「设置 → 插件 → 插件管理」出现并能装一个插件

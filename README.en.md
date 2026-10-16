@@ -71,14 +71,14 @@ outcome is **unknown** rather than claiming success.
 **Settings → Plugins → Add plugin**, then give one of:
 
 - a **local directory path** (the folder containing this repository)
-- **`github:<user>/<repo>`**
+- **`github:Alail691/dsh-plugins-in-settings`**
 - an **npm package name** (once published)
 
 ### 2. Command line (**non-desktop profiles only**)
 
 ```powershell
 dsh plugin --profile tui add link:"<absolute path to this plugin>"
-dsh plugin --profile tui add github:<user>/dsh-plugins-in-settings
+dsh plugin --profile tui add github:Alail691/dsh-plugins-in-settings
 ```
 
 > `desktop` is a profile the Electron app reserves; the CLI refuses it outright:

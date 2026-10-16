@@ -76,14 +76,14 @@
 **设置 → 插件 → 添加插件**，填三者之一：
 
 - **本地目录路径**（本仓库解压后那一层目录）
-- **`github:<用户名>/<仓库>`**
+- **`github:Alail691/dsh-plugins-in-settings`**
 - **npm 包名**（发布到 registry 后可用）
 
 ### 2. 命令行（**只有非 desktop profile 能这么装**）
 
 ```powershell
 dsh plugin --profile tui add link:"<本插件的绝对路径>"
-dsh plugin --profile tui add github:<用户名>/dsh-plugins-in-settings
+dsh plugin --profile tui add github:Alail691/dsh-plugins-in-settings
 ```
 
 > `desktop` 是 Electron 应用保留的 profile，命令行会被直接拒绝：

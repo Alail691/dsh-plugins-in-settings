@@ -43,11 +43,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/REPLACE_WITH_YOUR_GITHUB_USERNAME/dsh-plugins-in-settings.git"
+    "url": "git+https://github.com/Alail691/dsh-plugins-in-settings.git"
   },
-  "homepage": "https://github.com/REPLACE_WITH_YOUR_GITHUB_USERNAME/dsh-plugins-in-settings#readme",
+  "homepage": "https://github.com/Alail691/dsh-plugins-in-settings#readme",
   "bugs": {
-    "url": "https://github.com/REPLACE_WITH_YOUR_GITHUB_USERNAME/dsh-plugins-in-settings/issues"
+    "url": "https://github.com/Alail691/dsh-plugins-in-settings/issues"
   },
   "dsh": {
     "bundle": {
